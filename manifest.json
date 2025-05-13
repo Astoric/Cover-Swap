@@ -1,0 +1,12 @@
+[
+	{
+	  "name": "Cover Swap",
+	  "description": "Change the Cover Art for Default Playlists (Liked Songs, Local Files, Etc)",
+	  "preview": "./images/icon.png", 
+	  "main": "./dist/cover-swap.js",
+	  "readme": "README.md",
+	  "authors": [
+		  { "name": "Astoric", "url": "https://github.com/Astoric" }
+	  ]
+	}
+]
