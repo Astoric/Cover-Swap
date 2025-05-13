@@ -40,7 +40,7 @@ $ spicetify apply
 ## Usage
 
 1. To update the Default Playlist covers, first navigate to settings and scroll to the bottom.
-![Preview](.images/settings.png)
+![Settings](images/settings.png)
 
 2. Paste the desired cover URL into the desired box. (Note; Please ensure you're pasting the raw image URL, ending in .png, .jpeg etc.)
 
