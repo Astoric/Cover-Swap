@@ -49,4 +49,4 @@ $ spicetify apply
 4. (Optional) If you wish to restore the default images, just hit the Restore Defaults button.
 
 ## Credits
-Thanks to the [`Spicetify Team`](https://github.com/spicetify/). `Cover Swap` was creating using the Spicetify Creator.
+Thanks to the [`Spicetify Team`](https://github.com/spicetify/). `Cover Swap` was created using the Spicetify Creator.
