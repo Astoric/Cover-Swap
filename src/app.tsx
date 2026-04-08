@@ -32,7 +32,7 @@ async function main() {
   settings.addButton("button-1", "Update Images", "Apply Changes", async () => {
     const newLikedCoverUrl = settings.getFieldValue("liked-cover") as string;
     const newLocalFilesCoverUrl = settings.getFieldValue(
-      "local-files-cover"
+      "local-files-cover",
     ) as string;
     const newDjCoverUrl = settings.getFieldValue("dj-cover") as string;
 
@@ -54,7 +54,7 @@ async function main() {
     if (newLocalFilesCoverUrl) {
       Spicetify.LocalStorage.set(
         "default-covers:local-files",
-        newLocalFilesCoverUrl
+        newLocalFilesCoverUrl,
       );
       notificationMessage += "Saved Local Files cover URL. ";
       changesRequested = true;
@@ -142,10 +142,10 @@ async function main() {
       await delay(50);
 
       const collapseBtn = document.querySelector(
-        'button[aria-label="Collapse Your Library"]'
+        'button[aria-label="Collapse Your Library"]',
       );
       const openBtn = document.querySelector(
-        'button[aria-label="Open Your Library"]'
+        'button[aria-label="Open Your Library"]',
       );
 
       if (collapseBtn instanceof HTMLElement) {
@@ -187,7 +187,7 @@ async function main() {
     const lastSet = Spicetify.LocalStorage.get("default-covers:liked.last_set");
 
     const imgs = document.querySelectorAll<HTMLImageElement>(
-      `img[src*="${targetSrc}"], img[src="${lastSet || "none"}"]`
+      `img[src*="${targetSrc}"], img[src="${lastSet || "none"}"]`,
     );
 
     imgs.forEach((img) => {
@@ -231,16 +231,58 @@ async function main() {
   function updateLocalFilesCover() {
     const newCover = Spicetify.LocalStorage.get("default-covers:local-files");
     const lastSet = Spicetify.LocalStorage.get(
-      "default-covers:local-files.last_set"
+      "default-covers:local-files.last_set",
     );
 
-    const svgIcon = document.querySelector(
-      '[aria-labelledby="listrow-title-spotify:collection:local-files"] .HeaderSideArea svg[data-encore-id="icon"]'
-    ) as SVGElement | null;
+    let container = null;
 
-    if (!svgIcon) return;
+    const possibleSelectors = [
+      '[aria-label="Local Files"]',
+      'span[title="Local Files"]',
+      'div[title="Local Files"]',
+      '[data-testid="list-row"]',
+      '[data-testid="sidebar-list-item"]',
+    ];
 
-    const container = svgIcon.parentElement as HTMLElement;
+    for (const sel of possibleSelectors) {
+      const elements = document.querySelectorAll(sel);
+      for (const el of elements) {
+        const text = (
+          el.textContent ||
+          el.getAttribute("aria-label") ||
+          ""
+        ).trim();
+        if (text === "Local Files" || text.includes("Local Files")) {
+          container =
+            el.querySelector(
+              'div[class*="image"], div[class*="icon"], .main-image-image, .HeaderSideArea, svg',
+            )?.parentElement || el;
+          if (container) break;
+        }
+      }
+      if (container) break;
+    }
+
+    if (!container) {
+      const icons = document.querySelectorAll(
+        'nav svg, .sidebar svg, [role="img"]',
+      );
+      for (const icon of icons) {
+        const parent = icon.parentElement?.parentElement || icon.parentElement;
+        if (parent && (parent.textContent || "").includes("Local Files")) {
+          container = parent;
+          break;
+        }
+      }
+    }
+
+    if (!container) {
+      console.warn(
+        "[Cover Swap] Could not find Local Files item in the sidebar. Try expanding/collapsing Your Library or navigating away and back.",
+      );
+      return;
+    }
+
     const currentImg = container.querySelector("img");
 
     if (newCover) {
@@ -248,31 +290,40 @@ async function main() {
 
       const newImg = document.createElement("img");
       newImg.src = newCover;
-      newImg.alt = "Local Files Custom Cover";
-      newImg.style.width = "100%";
-      newImg.style.height = "100%";
-      newImg.style.objectFit = "cover";
-      newImg.style.borderRadius = "4px";
-      newImg.style.display = "block";
+      newImg.alt = "Local Files";
+      newImg.style.cssText = `
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+      border-radius: 4px !important;
+      display: block !important;
+    `;
 
-      try {
-        container.replaceChild(newImg, svgIcon);
-        Spicetify.LocalStorage.set(
-          "default-covers:local-files.last_set",
-          newCover
-        );
-        console.log("[Cover Swap] Local Files icon updated.");
-      } catch (e) {
-        console.error("[Cover Swap] Failed to update Local Files icon:", e);
+      const oldSvg = container.querySelector("svg");
+      if (oldSvg) {
+        oldSvg.replaceWith(newImg);
+      } else if (currentImg) {
+        currentImg.replaceWith(newImg);
+      } else {
+        container.prepend(newImg);
       }
-    } else if (currentImg && lastSet && currentImg.src === lastSet) {
-      try {
-        container.removeChild(currentImg);
-        Spicetify.LocalStorage.remove("default-covers:local-files.last_set");
-        console.log("[Cover Swap] Restored Local Files icon.");
-      } catch (e) {
-        console.error("[Cover Swap] Error restoring Local Files icon:", e);
-      }
+
+      Spicetify.LocalStorage.set(
+        "default-covers:local-files.last_set",
+        newCover,
+      );
+      console.log(
+        "[Cover Swap] ✅ Local Files icon successfully replaced with custom cover.",
+      );
+    } else if (
+      currentImg &&
+      lastSet &&
+      (currentImg.src === lastSet ||
+        currentImg.src.includes(new URL(lastSet).hostname))
+    ) {
+      currentImg.remove();
+      Spicetify.LocalStorage.remove("default-covers:local-files.last_set");
+      console.log("[Cover Swap] ✅ Restored original Local Files icon.");
     }
   }
 
@@ -285,7 +336,7 @@ async function main() {
 
     // Locate the DJ image element by stable attributes
     const djImg = document.querySelector<HTMLImageElement>(
-      'img[alt="DJ"].main-image-image'
+      'img[alt="DJ"].main-image-image',
     );
 
     if (!djImg) {
