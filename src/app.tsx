@@ -178,51 +178,79 @@ async function main() {
     }
   }
 
-  /**
-   * Updates Liked Songs cover on the main collection page
-   */
-  function updateLikedSongsCover() {
-    const newCover = Spicetify.LocalStorage.get("default-covers:liked");
-    const targetSrc = "https://misc.scdn.co/liked-songs/liked-songs-300.jpg";
-    const lastSet = Spicetify.LocalStorage.get("default-covers:liked.last_set");
+  /** Swap an image to a custom cover, remembering Spotify's original first */
+  function swapImage(img: HTMLImageElement, url: string) {
+    if (img.src === url) return;
+    if (img.dataset.coverSwapOrigSrc === undefined) {
+      img.dataset.coverSwapOrigSrc = img.src;
+      img.dataset.coverSwapOrigSrcset = img.getAttribute("srcset") ?? "";
+    }
+    if (img.srcset) {
+      img.srcset = img.srcset
+        .split(", ")
+        .map((s) => `${url} ${s.trim().split(" ")[1] || ""}`.trim())
+        .join(", ");
+    }
+    img.src = url;
+  }
 
-    const imgs = document.querySelectorAll<HTMLImageElement>(
-      `img[src*="${targetSrc}"], img[src="${lastSet || "none"}"]`,
+  /** Put back the stored original; fall back to a known default if none */
+  function restoreImage(img: HTMLImageElement, fallbackSrc: string) {
+    const origSrc = img.dataset.coverSwapOrigSrc;
+    if (origSrc !== undefined) {
+      const origSrcset = img.dataset.coverSwapOrigSrcset;
+      if (origSrcset) img.setAttribute("srcset", origSrcset);
+      else img.removeAttribute("srcset");
+      img.src = origSrc;
+      delete img.dataset.coverSwapOrigSrc;
+      delete img.dataset.coverSwapOrigSrcset;
+    } else {
+      img.removeAttribute("srcset");
+      img.src = fallbackSrc;
+    }
+  }
+
+  /** Apply or restore a cover for every image matching the default art */
+  function updateCover(
+    key: string,
+    defaultMatch: string[],
+    fallbackSrc: string,
+  ) {
+    const newCover = Spicetify.LocalStorage.get(`default-covers:${key}`);
+    const lastSet = Spicetify.LocalStorage.get(
+      `default-covers:${key}.last_set`,
     );
+    const selector = [
+      ...defaultMatch,
+      `img[data-cover-swap-key="${key}"]`,
+      ...(lastSet ? [`img[src="${CSS.escape(lastSet)}"]`] : []),
+    ].join(", ");
 
-    imgs.forEach((img) => {
+    document.querySelectorAll<HTMLImageElement>(selector).forEach((img) => {
       if (newCover) {
-        if (img.src !== newCover && img.src.includes(targetSrc)) {
-          img.src = newCover;
-          if (img.srcset) {
-            img.srcset = img.srcset
-              .split(", ")
-              .map((s) => {
-                const parts = s.trim().split(" ");
-                return `${newCover} ${parts[1] || ""}`.trim();
-              })
-              .join(", ");
-          }
-        }
-      } else if (lastSet && img.src === lastSet) {
-        img.src = targetSrc;
-        if (img.srcset) {
-          img.srcset = img.srcset
-            .split(", ")
-            .map((s) => {
-              const parts = s.trim().split(" ");
-              return `${targetSrc} ${parts[1] || ""}`.trim();
-            })
-            .join(", ");
-        }
+        img.dataset.coverSwapKey = key;
+        swapImage(img, newCover);
+      } else if (
+        img.dataset.coverSwapKey === key ||
+        (lastSet && img.src === lastSet)
+      ) {
+        restoreImage(img, fallbackSrc);
+        delete img.dataset.coverSwapKey;
       }
     });
 
-    if (newCover) {
-      Spicetify.LocalStorage.set("default-covers:liked.last_set", newCover);
-    } else {
-      Spicetify.LocalStorage.remove("default-covers:liked.last_set");
-    }
+    if (newCover)
+      Spicetify.LocalStorage.set(`default-covers:${key}.last_set`, newCover);
+    else Spicetify.LocalStorage.remove(`default-covers:${key}.last_set`);
+  }
+
+  /** Liked Songs: match any size/format of the default heart image */
+  function updateLikedSongsCover() {
+    updateCover(
+      "liked",
+      ['img[src*="liked-songs"]', 'img[srcset*="liked-songs"]'],
+      "https://misc.scdn.co/liked-songs/liked-songs-300.jpg",
+    );
   }
 
   /**
@@ -327,60 +355,17 @@ async function main() {
     }
   }
 
-  /**
-   * Replaces or restores the DJ icon in the library sidebar
-   */
+  /** DJ: match by stable attributes (class names change between versions) */
   function updateDjCover() {
-    const newCover = Spicetify.LocalStorage.get("default-covers:dj");
-    const lastSet = Spicetify.LocalStorage.get("default-covers:dj.last_set");
-
-    // Locate the DJ image element by stable attributes
-    const djImg = document.querySelector<HTMLImageElement>(
-      'img[alt="DJ"].main-image-image',
+    updateCover(
+      "dj",
+      [
+        'img[alt="DJ"]',
+        'img[src*="DJ-Beta-CoverArt"]',
+        'img[srcset*="DJ-Beta-CoverArt"]',
+      ],
+      "https://lexicon-assets.spotifycdn.com/DJ-Beta-CoverArt-300.jpg",
     );
-
-    if (!djImg) {
-      console.warn("[Cover Swap] DJ image not found.");
-      return;
-    }
-
-    if (newCover) {
-      // Set custom cover URL if different
-      if (djImg.src !== newCover) {
-        djImg.src = newCover;
-
-        if (djImg.srcset) {
-          djImg.srcset = djImg.srcset
-            .split(", ")
-            .map((s) => {
-              const parts = s.trim().split(" ");
-              return `${newCover} ${parts[1] || ""}`.trim();
-            })
-            .join(", ");
-        }
-
-        Spicetify.LocalStorage.set("default-covers:dj.last_set", newCover);
-        console.log("[Cover Swap] DJ cover updated.");
-      }
-    } else if (lastSet && djImg.src === lastSet) {
-      // Restore Spotify’s default DJ art
-      const defaultSrc =
-        "https://lexicon-assets.spotifycdn.com/DJ-Beta-CoverArt-300.jpg";
-      djImg.src = defaultSrc;
-
-      if (djImg.srcset) {
-        djImg.srcset = djImg.srcset
-          .split(", ")
-          .map((s) => {
-            const parts = s.trim().split(" ");
-            return `${defaultSrc} ${parts[1] || ""}`.trim();
-          })
-          .join(", ");
-      }
-
-      Spicetify.LocalStorage.remove("default-covers:dj.last_set");
-      console.log("[Cover Swap] DJ cover restored to default.");
-    }
   }
 
   /**
